@@ -120,21 +120,25 @@ Response:
 ```json
 {
   "reply": "Assistant output",
-  "status": "session ✓ | system ✓ | memory ✓ | kb ✓"
+  "status": "session ✓ | system ✓ | memory ✓ | kb ✓",
+  "prompt_bytes": 1234
 }
 ```
 
 ### `GET /memory`
-Reads persistent memory summary.
+Reads persistent memory facts as key-value pairs.
 
-### `PUT /memory`
-Updates persistent memory summary.
+### `DELETE /memory`
+Clears persistent memory facts.
 
 ### `POST /kb/upload`
 Uploads a markdown file (`.md`) into `data/uploads`.
 
 ### `GET /kb`
-Returns current KB content.
+Returns active KB file name and current KB content.
+
+### `PUT /kb/select`
+Selects a specific uploaded markdown file as active KB.
 
 ## Layer-by-layer sample payloads
 
