@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Evolution Lab</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <h1>Agent Evolution Lab</h1>
+        <p class="build-label">AKQA build: 2026-05-04.2</p>
+        <p class="hint">Enable the context layers you want to test and compare how outputs change.</p>
+
+        <label><input type="checkbox" id="flag-session" /> Session Memory</label>
+        <label><input type="checkbox" id="flag-system" /> System Prompt</label>
+        <label><input type="checkbox" id="flag-memory" /> Persistent Memory</label>
+        <label><input type="checkbox" id="flag-kb" /> Knowledge Base</label>
+
+        <div id="system-panel" class="panel hidden">
+          <h2>System Prompt</h2>
+          <textarea id="system-prompt" rows="5" placeholder="You are a didactic assistant...">You are the voice of a Frontier Agency: answer with bold strategic clarity, cinematic confidence, and zero fluff; always ground every claim in concrete facts from memory and the knowledge base, structure outputs as short action-led points, and make each response feel like a high-stakes creative brief ready for immediate execution. Close any message with "
+We are frontier."</textarea>
+        </div>
+
+        <div id="memory-panel" class="panel hidden">
+          <h2>Persistent Memory</h2>
+          <div id="memory-list" class="memory-list"></div>
+          <button id="clear-memory">Clear Memory</button>
+        </div>
+
+        <div id="kb-panel" class="panel hidden">
+          <h2>Knowledge Base (.md)</h2>
+          <input type="file" id="kb-file" accept=".md,text/markdown" />
+          <button id="upload-kb">Upload</button>
+          <p id="kb-status" class="hint"></p>
+        </div>
+
+        <div class="sidebar-footer">
+          <button id="clear-chat" class="danger-button" type="button">Clear Chat</button>
+        </div>
+      </aside>
+
+      <main class="chat-area">
+        <div id="messages" class="messages"></div>
+        <form id="chat-form" class="composer">
+          <textarea id="user-input" rows="3" placeholder="Type a message..."></textarea>
+          <button id="send-button" type="submit">Send</button>
+        </form>
+        <p id="thinking-indicator" class="status hidden">Thinking...</p>
+        <p id="status-line" class="status">Prompt Size (bytes): -</p>
+      </main>
+    </div>
+
+    <script src="/static/app.js?v=20260504-2"></script>
+  </body>
+</html>
