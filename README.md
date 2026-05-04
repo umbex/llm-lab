@@ -2,6 +2,14 @@
 
 Minimal Dockerized FastAPI app to demonstrate progressive LLM context layers.
 
+## Why This App Exists
+
+Large language models can sound smart even when they have no memory of previous interactions.  
+This web app helps explain, in a practical way, how an AI assistant becomes more useful when you progressively add context layers.
+
+In simple terms, you can toggle features like chat history, system instructions, long-term memory, and a knowledge base, then observe how answers change.  
+It is designed as a learning tool to make “agent behavior” transparent, testable, and easy to understand.
+
 ## Quick Start (GitHub)
 
 Clone the repository:
