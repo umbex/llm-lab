@@ -60,6 +60,13 @@ Prompt block order in backend:
 4. Session History (sliding window)
 5. Current User Input
 
+Memory extraction flow:
+- Uses a single LLM call for both user reply and candidate memory facts.
+- The model is instructed to return JSON with:
+  - `reply_text`
+  - `memory_facts` (user-profile facts only)
+- `memory_facts` are persisted only when `flags.memory=true`, the user message matches explicit memory-intent patterns, and facts pass backend sanitization/allowlist checks.
+
 ## Environment
 
 Copy and edit `.env.example`:
@@ -132,6 +139,10 @@ Response:
   "prompt_bytes": 1234
 }
 ```
+
+Notes:
+- Public response shape is unchanged.
+- Persistent memory writing is synchronous in the `/chat` request flow.
 
 ### `GET /memory`
 Reads persistent memory facts as key-value pairs.
@@ -215,5 +226,5 @@ Layer 4 (kb on):
 ## Test
 
 ```bash
-./.venv/bin/pytest tests/test_context_builder.py tests/test_chat_api.py tests/test_kb_store.py tests/test_persistent_memory.py tests/test_smoke.py -q
+./.venv/bin/pytest tests/test_openai_client.py tests/test_context_builder.py tests/test_chat_api.py tests/test_kb_store.py tests/test_persistent_memory.py tests/test_smoke.py -q
 ```
