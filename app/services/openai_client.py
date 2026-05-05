@@ -1,22 +1,16 @@
 import os
-from typing import Any
+import json
+from typing import Any, TypedDict
 
 from openai import OpenAI
 
 
-def chat_completion(messages: list[dict[str, str]]) -> str:
-    client = OpenAI(
-        api_key=os.getenv('OPENAI_API_KEY'),
-        base_url=os.getenv('OPENAI_BASE_URL'),
-    )
-    model = os.getenv('MODEL', 'gpt-5.4-mini')
-    response = client.chat.completions.create(model=model, messages=messages)
-
-    content = response.choices[0].message.content
-    return content or ''
+class UnifiedCompletion(TypedDict):
+    reply_text: str
+    memory_facts: dict[str, str]
 
 
-def extract_memory_facts(user_message: str, assistant_reply: str) -> dict[str, str]:
+def chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> UnifiedCompletion:
     client = OpenAI(
         api_key=os.getenv('OPENAI_API_KEY'),
         base_url=os.getenv('OPENAI_BASE_URL'),
@@ -28,34 +22,41 @@ def extract_memory_facts(user_message: str, assistant_reply: str) -> dict[str, s
             {
                 'role': 'system',
                 'content': (
-                    'Extract ONLY explicit user-profile facts from the conversation. '
-                    'Allowed facts are strictly about: user identity, user work/job/role, '
-                    'user preferences, or explicit user requests to remember information. '
-                    'Do NOT store generic world facts, assistant claims, or task content not about the user. '
-                    'If uncertain or not explicit, return empty facts. '
-                    'Return only JSON object with string key:value pairs under "facts". '
-                    'If no useful facts, return {"facts":{}}.'
+                    'Return only valid JSON with this exact shape: '
+                    '{"reply_text":"string","memory_facts":{"key":"value"}}. '
+                    'reply_text must contain the full assistant answer for the user. '
+                    'memory_facts must include only explicit user-profile facts about identity, '
+                    'work/job/role, preferences, or explicit user requests to remember something. '
+                    'Never include generic world facts, assistant claims, or unrelated task content. '
+                    'If uncertain, use an empty object for memory_facts.'
                 ),
             },
-            {
-                'role': 'user',
-                'content': f'User: {user_message}\nAssistant: {assistant_reply}',
-            },
+            *messages,
         ],
         response_format={'type': 'json_object'},
     )
-    content = response.choices[0].message.content or '{}'
-    try:
-        import json
+    return _parse_unified_completion(response.choices[0].message.content or '{}', memory_enabled=memory_enabled)
 
+
+def _parse_unified_completion(content: str, memory_enabled: bool) -> UnifiedCompletion:
+    try:
         payload: dict[str, Any] = json.loads(content)
     except Exception:
-        return {}
-    facts = payload.get('facts')
-    if not isinstance(facts, dict):
-        return {}
+        return {
+            'reply_text': content.strip(),
+            'memory_facts': {},
+        }
+
+    reply_text = payload.get('reply_text')
+    if not isinstance(reply_text, str):
+        reply_text = ''
+
+    facts = payload.get('memory_facts')
+    if not isinstance(facts, dict) or not memory_enabled:
+        return {'reply_text': reply_text, 'memory_facts': {}}
+
     clean: dict[str, str] = {}
     for key, value in facts.items():
         if isinstance(key, str) and isinstance(value, str) and key.strip() and value.strip():
             clean[key.strip()] = value.strip()
-    return clean
+    return {'reply_text': reply_text, 'memory_facts': clean}

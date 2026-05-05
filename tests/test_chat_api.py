@@ -12,9 +12,10 @@ from app.main import app
 def test_chat_endpoint_returns_reply_and_status_shape(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
-    def fake_chat_completion(messages: list[dict[str, str]]) -> str:
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
         captured['messages'] = messages
-        return 'Echo: ciao'
+        captured['memory_enabled'] = memory_enabled
+        return {'reply_text': 'Echo: ciao', 'memory_facts': {}}
 
     monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
 
@@ -32,12 +33,13 @@ def test_chat_endpoint_returns_reply_and_status_shape(monkeypatch) -> None:
     assert data['status'] == 'session ✓ | system ✗ | memory ✗ | kb ✗'
     assert isinstance(data['prompt_bytes'], int)
     assert data['prompt_bytes'] > 0
+    assert captured['memory_enabled'] is False
     assert captured['messages'] == [{'role': 'user', 'content': 'ciao'}]
 
 
 def test_chat_endpoint_accepts_optional_placeholders(monkeypatch) -> None:
-    def fake_chat_completion(messages: list[dict[str, str]]) -> str:
-        return 'ok'
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
+        return {'reply_text': 'ok', 'memory_facts': {'role': 'developer'}}
 
     monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
 
@@ -70,9 +72,9 @@ def test_chat_endpoint_validates_required_fields() -> None:
 def test_chat_endpoint_includes_session_history_when_enabled(monkeypatch) -> None:
     captured_calls: list[list[dict[str, str]]] = []
 
-    def fake_chat_completion(messages: list[dict[str, str]]) -> str:
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
         captured_calls.append(messages)
-        return f"reply-{len(captured_calls)}"
+        return {'reply_text': f"reply-{len(captured_calls)}", 'memory_facts': {}}
 
     monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
 
@@ -104,9 +106,9 @@ def test_chat_endpoint_includes_session_history_when_enabled(monkeypatch) -> Non
 def test_chat_endpoint_injects_system_prompt_first_when_enabled(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
-    def fake_chat_completion(messages: list[dict[str, str]]) -> str:
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
         captured['messages'] = messages
-        return 'ok-system'
+        return {'reply_text': 'ok-system', 'memory_facts': {}}
 
     monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
 
@@ -129,9 +131,9 @@ def test_chat_endpoint_injects_system_prompt_first_when_enabled(monkeypatch) -> 
 def test_chat_endpoint_ignores_system_prompt_when_flag_is_disabled(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
-    def fake_chat_completion(messages: list[dict[str, str]]) -> str:
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
         captured['messages'] = messages
-        return 'ok-no-system'
+        return {'reply_text': 'ok-no-system', 'memory_facts': {}}
 
     monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
 
@@ -150,9 +152,10 @@ def test_chat_endpoint_ignores_system_prompt_when_flag_is_disabled(monkeypatch) 
 def test_chat_endpoint_injects_persistent_memory_when_enabled(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
-    def fake_chat_completion(messages: list[dict[str, str]]) -> str:
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
         captured['messages'] = messages
-        return 'ok-memory'
+        captured['memory_enabled'] = memory_enabled
+        return {'reply_text': 'ok-memory', 'memory_facts': {'name': 'Mario'}}
 
     monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
     monkeypatch.setattr('app.main.memory_store.get_summary', lambda: 'Known fact: user is in Rome.')
@@ -170,6 +173,7 @@ def test_chat_endpoint_injects_persistent_memory_when_enabled(monkeypatch) -> No
         {'role': 'system', 'content': 'Persistent memory:\nKnown fact: user is in Rome.'},
         {'role': 'user', 'content': 'where am i?'},
     ]
+    assert captured['memory_enabled'] is True
 
 
 def test_memory_inspector_read_and_clear() -> None:
@@ -191,9 +195,9 @@ def test_memory_inspector_read_and_clear() -> None:
 def test_chat_endpoint_injects_kb_when_enabled(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
-    def fake_chat_completion(messages: list[dict[str, str]]) -> str:
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
         captured['messages'] = messages
-        return 'ok-kb'
+        return {'reply_text': 'ok-kb', 'memory_facts': {}}
 
     monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
     monkeypatch.setattr('app.main.kb_store.get_content', lambda: '# KB\nUse this information.')
@@ -251,3 +255,60 @@ def test_health_endpoint_still_returns_ok_payload() -> None:
 
     assert response.status_code == 200
     assert response.json() == {'status': 'ok'}
+
+
+def test_chat_memory_not_persisted_when_flag_disabled(monkeypatch) -> None:
+    monkeypatch.setattr('app.main.memory_store.clear', lambda: {})
+    monkeypatch.setattr('app.main.memory_store.get_summary', lambda: None)
+
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
+        return {'reply_text': 'ok', 'memory_facts': {'name': 'Luca'}}
+
+    monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
+    monkeypatch.setattr('app.main.memory_store.upsert_facts', lambda facts: (_ for _ in ()).throw(AssertionError('must not persist')))
+
+    client = TestClient(app)
+    response = client.post(
+        '/chat',
+        json={'message': 'my name is Luca', 'flags': {'session': False, 'system': False, 'memory': False, 'kb': False}},
+    )
+    assert response.status_code == 200
+    assert response.json()['reply'] == 'ok'
+
+
+def test_chat_memory_persisted_when_enabled_and_explicit(monkeypatch) -> None:
+    persisted: dict[str, str] = {}
+    monkeypatch.setattr('app.main.memory_store.clear', lambda: {})
+    monkeypatch.setattr('app.main.memory_store.get_summary', lambda: None)
+
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
+        return {'reply_text': 'ok', 'memory_facts': {'Name': 'Alice', 'irrelevant': 'x'}}
+
+    monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
+    monkeypatch.setattr('app.main.memory_store.upsert_facts', lambda facts: persisted.update(facts) or facts)
+
+    client = TestClient(app)
+    response = client.post(
+        '/chat',
+        json={'message': 'my name is Alice', 'flags': {'session': False, 'system': False, 'memory': True, 'kb': False}},
+    )
+    assert response.status_code == 200
+    assert persisted == {'name': 'Alice'}
+
+
+def test_chat_memory_not_persisted_for_non_user_message(monkeypatch) -> None:
+    monkeypatch.setattr('app.main.memory_store.clear', lambda: {})
+    monkeypatch.setattr('app.main.memory_store.get_summary', lambda: None)
+
+    def fake_chat_completion(messages: list[dict[str, str]], memory_enabled: bool) -> dict[str, object]:
+        return {'reply_text': 'ok', 'memory_facts': {'name': 'Alice'}}
+
+    monkeypatch.setattr('app.main.chat_completion', fake_chat_completion)
+    monkeypatch.setattr('app.main.memory_store.upsert_facts', lambda facts: (_ for _ in ()).throw(AssertionError('must not persist')))
+
+    client = TestClient(app)
+    response = client.post(
+        '/chat',
+        json={'message': 'What is the weather today?', 'flags': {'session': False, 'system': False, 'memory': True, 'kb': False}},
+    )
+    assert response.status_code == 200

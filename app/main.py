@@ -1,5 +1,4 @@
 from pathlib import Path
-import threading
 import re
 import json
 import os
@@ -12,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.schemas import ChatRequest, ChatResponse, MemoryPayload
 from app.services.context_builder import build_messages, compose_status
 from app.services.kb_store import KBStore
-from app.services.openai_client import chat_completion, extract_memory_facts
+from app.services.openai_client import chat_completion
 from app.services.persistent_memory import PersistentMemoryStore
 from app.services.session_store import SessionStore
 
@@ -21,6 +20,22 @@ session_store = SessionStore()
 memory_store = PersistentMemoryStore(Path('data/memory.json'))
 kb_store = KBStore(Path('data/uploads'))
 MAX_HISTORY_MESSAGES = 12
+MAX_MEMORY_KEY_LEN = 64
+MAX_MEMORY_VALUE_LEN = 512
+ALLOWED_MEMORY_KEYS = {
+    'name',
+    'identity',
+    'location',
+    'work',
+    'job',
+    'role',
+    'company',
+    'preference',
+    'preferences',
+    'likes',
+    'dislikes',
+    'remember',
+}
 STATIC_DIR = Path(__file__).parent / 'static'
 app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
 
@@ -63,27 +78,55 @@ def chat(payload: ChatRequest) -> ChatResponse:
         max_history_messages=MAX_HISTORY_MESSAGES,
     )
     prompt_bytes = len(json.dumps(messages, ensure_ascii=False).encode('utf-8'))
-    reply = chat_completion(messages)
+    completion = chat_completion(messages, memory_enabled=payload.flags.memory)
+    reply = completion['reply_text']
     if payload.flags.memory:
-        threading.Thread(
-            target=_update_memory_in_background,
-            args=(payload.message, reply),
-            daemon=True,
-        ).start()
+        _update_memory(payload.message, completion.get('memory_facts', {}))
     if payload.flags.session and payload.session_id:
         session_store.append_turn(payload.session_id, payload.message, reply)
     return ChatResponse(reply=reply, status=compose_status(payload.flags), prompt_bytes=prompt_bytes)
 
 
-def _update_memory_in_background(user_message: str, assistant_reply: str) -> None:
+def _update_memory(user_message: str, memory_facts: dict[str, str]) -> None:
     if not _should_extract_memory(user_message):
         return
-    try:
-        facts = extract_memory_facts(user_message, assistant_reply)
-    except Exception:
+    facts = _sanitize_memory_facts(memory_facts)
+    if not _has_explicit_user_reference(facts):
         return
     if facts:
         memory_store.upsert_facts(facts)
+
+
+def _sanitize_memory_facts(facts: dict[str, str]) -> dict[str, str]:
+    clean: dict[str, str] = {}
+    if not isinstance(facts, dict):
+        return clean
+    for key, value in facts.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        normalized_key = key.strip().lower()
+        normalized_value = value.strip()
+        if not normalized_key or not normalized_value:
+            continue
+        if len(normalized_key) > MAX_MEMORY_KEY_LEN or len(normalized_value) > MAX_MEMORY_VALUE_LEN:
+            continue
+        if normalized_key not in ALLOWED_MEMORY_KEYS:
+            continue
+        clean[normalized_key] = normalized_value
+    return clean
+
+
+def _has_explicit_user_reference(facts: dict[str, str]) -> bool:
+    if not facts:
+        return False
+    user_markers = ('my ', 'i ', 'me ', 'user', 'mi ', 'io ')
+    for key, value in facts.items():
+        haystack = f'{key} {value}'.lower()
+        if any(marker in haystack for marker in user_markers):
+            return True
+        if key in {'name', 'identity', 'location', 'work', 'job', 'role', 'company', 'preferences', 'preference'}:
+            return True
+    return False
 
 
 def _should_extract_memory(user_message: str) -> bool:
