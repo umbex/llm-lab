@@ -23,6 +23,7 @@ const ui = {
   chatForm: document.getElementById('chat-form'),
   messages: document.getElementById('messages'),
   statusLine: document.getElementById('status-line'),
+  runtimeLabel: document.getElementById('runtime-label'),
   thinkingIndicator: document.getElementById('thinking-indicator'),
   sendButton: document.getElementById('send-button'),
   clearChat: document.getElementById('clear-chat'),
@@ -332,6 +333,18 @@ async function refreshKbStatus() {
   }
 }
 
+async function refreshRuntimeLabel() {
+  try {
+    const res = await fetch('/runtime');
+    const data = await res.json();
+    const provider = data.provider || 'unknown';
+    const model = data.model || 'unknown';
+    ui.runtimeLabel.textContent = `${provider}:${model}`;
+  } catch {
+    ui.runtimeLabel.textContent = 'Provider:Model unavailable';
+  }
+}
+
 async function sendChat(message) {
   const payload = {
     message,
@@ -422,3 +435,4 @@ updateStatusFromFlags();
 loadPromptHistory();
 refreshMemory().catch(() => {});
 refreshKbStatus().catch(() => {});
+refreshRuntimeLabel().catch(() => {});

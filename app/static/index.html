@@ -10,13 +10,16 @@
     <div class="app-shell">
       <aside class="sidebar">
         <h1>Agent Evolution Lab</h1>
-        <p class="build-label">AKQA build: 2026-05-04.2</p>
+        <p class="build-label">AKQA build: 2026-05-05.1</p>
+        <p id="runtime-label" class="build-label">Provider:Model loading...</p>
         <p class="hint">Enable the context layers you want to test and compare how outputs change.</p>
 
-        <label><input type="checkbox" id="flag-session" /> Session Memory</label>
-        <label><input type="checkbox" id="flag-system" /> System Prompt</label>
-        <label><input type="checkbox" id="flag-memory" /> Persistent Memory</label>
-        <label><input type="checkbox" id="flag-kb" /> Knowledge Base</label>
+        <div class="layer-flags">
+          <label><input type="checkbox" id="flag-session" /> Session Memory</label>
+          <label><input type="checkbox" id="flag-system" /> System Prompt</label>
+          <label><input type="checkbox" id="flag-memory" /> Persistent Memory</label>
+          <label><input type="checkbox" id="flag-kb" /> Knowledge Base</label>
+        </div>
 
         <div id="system-panel" class="panel hidden">
           <h2>System Prompt</h2>
@@ -53,6 +56,6 @@ We are frontier."</textarea>
       </main>
     </div>
 
-    <script src="/static/app.js?v=20260504-2"></script>
+    <script src="/static/app.js?v=20260505-2"></script>
   </body>
 </html>

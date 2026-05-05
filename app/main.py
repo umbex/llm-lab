@@ -2,6 +2,8 @@ from pathlib import Path
 import threading
 import re
 import json
+import os
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -31,6 +33,15 @@ def index() -> FileResponse:
 @app.get('/health')
 def health() -> dict[str, str]:
     return {'status': 'ok'}
+
+
+@app.get('/runtime')
+def runtime_info() -> dict[str, str]:
+    base_url = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+    host = urlparse(base_url).hostname or 'openai'
+    provider = 'openai' if host.endswith('openai.com') else (host.split('.')[0] if host else 'openai')
+    model = os.getenv('MODEL', 'gpt-5.4-mini')
+    return {'provider': provider, 'model': model}
 
 
 @app.post('/chat', response_model=ChatResponse)
